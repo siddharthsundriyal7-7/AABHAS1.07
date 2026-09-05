@@ -1,0 +1,16 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Permissions-Policy", "value": "camera=(self)" }
+      ]
+    }
+  ],
+  "functions": {
+    "api/classify.py": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
+}
