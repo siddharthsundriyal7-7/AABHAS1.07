@@ -77,20 +77,25 @@ captureBtn.addEventListener('click', async () => {
       });
       if (uploadErr) throw uploadErr;
 
-      const risk = await classifyFrame(blob, canvasEl, ctx);
+      const result = await classifyFrame(blob, canvasEl, ctx);
 
       const { error: insertErr } = await sb.from('detections').insert({
         user_id: user.id,
         image_path: path,
         source: sourceSelect.value,
         device: deviceSelect.value,
-        risk_level: risk,
+        risk_level: result.risk,
+        confidence: result.confidence ?? null,
       });
       if (insertErr) throw insertErr;
 
+      renderGradcam(result, canvasEl.toDataURL('image/jpeg', 0.9));
+
+      const risk = result.risk;
       captureMsg.textContent = `Capture saved — classified ${risk.toUpperCase()} risk.`;
       captureMsg.className = 'form-msg ok';
       if (window.refreshDetections) window.refreshDetections();
+      if (window.loadTrend) window.loadTrend();
     } catch (err) {
       captureMsg.textContent = err.message || 'Upload failed.';
       captureMsg.className = 'form-msg error';
@@ -100,10 +105,11 @@ captureBtn.addEventListener('click', async () => {
   }, 'image/jpeg', 0.9);
 });
 
-// Calls the real EfficientNet-B0 model via /api/classify (see api/classify.py).
-// Falls back to the local heuristic only if that endpoint isn't reachable yet
-// (e.g. the ONNX model file hasn't been added to the repo), so the capture
-// flow still works end to end while you're setting the model up.
+// Calls the real EfficientNet-B0 model + Grad-CAM via /api/classify
+// (see api/classify.py). Falls back to the local heuristic — with no
+// heatmap — only if that endpoint isn't reachable yet (e.g. the .pth model
+// file hasn't been added to the repo), so the capture flow still works
+// end to end while you're setting the model up.
 async function classifyFrame(blob, canvas, ctx) {
   try {
     const res = await fetch('/api/classify', {
@@ -114,11 +120,48 @@ async function classifyFrame(blob, canvas, ctx) {
     if (!res.ok) throw new Error('classify endpoint returned ' + res.status);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    return data.risk;
+    return data; // { risk, confidence, threshold, heatmap, summary, indicators }
   } catch (err) {
     console.warn('Model endpoint unavailable, using placeholder heuristic:', err.message);
-    return simulateRiskAssessment(canvas, ctx);
+    return { risk: simulateRiskAssessment(canvas, ctx), heatmap: null };
   }
+}
+
+// ---- Grad-CAM panel ----
+const gradcamPanel = document.getElementById('gradcam-panel');
+const gradcamBase = document.getElementById('gradcam-base');
+const gradcamOverlay = document.getElementById('gradcam-overlay');
+const gradcamMode = document.getElementById('gradcam-mode');
+const gradcamOpacity = document.getElementById('gradcam-opacity');
+const gradcamRiskChip = document.getElementById('gradcam-risk-chip');
+const gradcamConfidence = document.getElementById('gradcam-confidence');
+const gradcamSummary = document.getElementById('gradcam-summary');
+const gradcamIndicators = document.getElementById('gradcam-indicators');
+
+function applyGradcamView() {
+  const mode = gradcamMode.value;
+  gradcamBase.style.display = mode === 'heatmap' ? 'none' : 'block';
+  gradcamOverlay.style.display = mode === 'original' ? 'none' : 'block';
+  gradcamOverlay.style.opacity = mode === 'heatmap' ? '1' : String(gradcamOpacity.value / 100);
+}
+gradcamMode.addEventListener('change', applyGradcamView);
+gradcamOpacity.addEventListener('input', applyGradcamView);
+
+function renderGradcam(result, capturedDataUrl) {
+  if (!result.heatmap) {
+    gradcamPanel.style.display = 'none'; // no heatmap available (placeholder heuristic was used)
+    return;
+  }
+  gradcamPanel.style.display = 'block';
+  gradcamBase.src = capturedDataUrl;
+  gradcamOverlay.src = result.heatmap;
+  applyGradcamView();
+
+  gradcamRiskChip.textContent = `${result.risk} risk`;
+  gradcamRiskChip.className = `risk-chip ${result.risk === 'high' ? 'high' : 'low'}`;
+  gradcamConfidence.textContent = `confidence ${(result.confidence * 100).toFixed(1)}%`;
+  gradcamSummary.textContent = result.summary || '';
+  gradcamIndicators.innerHTML = (result.indicators || []).map((i) => `<li>${i}</li>`).join('');
 }
 
 function simulateRiskAssessment(canvas, ctx) {
