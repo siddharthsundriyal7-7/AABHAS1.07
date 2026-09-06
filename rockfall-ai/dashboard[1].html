@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rockfall AI — Command Center</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="dash-shell">
+    <aside class="side-rail">
+      <div class="brand">ROCKFALL AI</div>
+      <div class="role-tag" id="role-tag">—</div>
+
+      <div class="nav-label">Signed in as</div>
+      <div class="mono" id="user-email" style="font-size:13px; word-break:break-all;">—</div>
+
+      <div class="nav-label">Status</div>
+      <span class="badge-live">TELEMETRY LIVE</span>
+
+      <button class="btn btn-ghost signout" id="signout-btn">Sign out</button>
+    </aside>
+
+    <main class="main-col">
+      <div class="main-head">
+        <h1>Bench 14 Sector B-4</h1>
+        <div class="stamp">Last refresh: <span id="stamp" class="mono">—</span></div>
+      </div>
+
+      <div class="grid-2">
+        <section class="panel">
+          <h3>Camera Capture</h3>
+          <div class="select-row">
+            <div class="field">
+              <label for="source-select">Source</label>
+              <select id="source-select">
+                <option value="camera">Fixed Camera</option>
+                <option value="drone">Drone / UAV</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="device-select">Device</label>
+              <select id="device-select">
+                <option value="CAM-01">CAM-01 — North Bench Pit Wall</option>
+                <option value="CAM-02">CAM-02 — Haul Road East Cut</option>
+                <option value="CAM-03">CAM-03 — South Pit Wall Overlook</option>
+                <option value="CAM-04">CAM-04 — Primary Crusher Access</option>
+                <option value="UAV-01">UAV-01 — Vanguard</option>
+                <option value="UAV-02">UAV-02 — SkyGuard</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="camera-frame">
+            <video id="camera-video" playsinline muted></video>
+            <canvas id="camera-canvas"></canvas>
+            <div class="camera-reticle"></div>
+            <div class="camera-status" id="camera-status">OFFLINE</div>
+          </div>
+
+          <div class="form-msg" id="capture-msg"></div>
+
+          <div class="camera-controls">
+            <button class="btn btn-primary" id="cam-start" style="width:auto;">Start camera</button>
+            <button class="btn btn-ghost" id="cam-switch" style="width:auto;">Switch camera</button>
+            <button class="btn btn-danger" id="cam-capture" style="width:auto;" disabled>Capture &amp; classify</button>
+          </div>
+        </section>
+
+        <section class="panel" id="gradcam-panel" style="display:none;">
+          <h3>Grad-CAM Attention Map</h3>
+          <div class="camera-frame" id="gradcam-frame">
+            <img id="gradcam-base" alt="Captured frame" />
+            <img id="gradcam-overlay" alt="Grad-CAM heatmap" style="position:absolute; inset:0; opacity:0.55;" />
+          </div>
+
+          <div class="select-row" style="margin-top:14px;">
+            <div class="field">
+              <label for="gradcam-mode">View mode</label>
+              <select id="gradcam-mode">
+                <option value="blended">Blended overlay</option>
+                <option value="heatmap">Heatmap only</option>
+                <option value="original">Original only</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="gradcam-opacity">Overlay opacity</label>
+              <input type="range" id="gradcam-opacity" min="0" max="100" value="55" />
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:14px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
+              <span class="risk-chip" id="gradcam-risk-chip">—</span>
+              <span class="mono" id="gradcam-confidence" style="font-size:12px; color:var(--steel-500);">—</span>
+            </div>
+            <p id="gradcam-summary" style="font-size:13px; color:var(--steel-300); margin:0 0 10px;">—</p>
+            <ul id="gradcam-indicators" style="margin:0; padding-left:18px; font-size:13px; color:var(--steel-300);"></ul>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Risk Trend by Device</h3>
+          <div class="select-row">
+            <div class="field">
+              <label for="trend-device">Device</label>
+              <select id="trend-device">
+                <option value="CAM-01">CAM-01 — North Bench Pit Wall</option>
+                <option value="CAM-02">CAM-02 — Haul Road East Cut</option>
+                <option value="CAM-03">CAM-03 — South Pit Wall Overlook</option>
+                <option value="CAM-04">CAM-04 — Primary Crusher Access</option>
+                <option value="UAV-01">UAV-01 — Vanguard</option>
+                <option value="UAV-02">UAV-02 — SkyGuard</option>
+              </select>
+            </div>
+          </div>
+          <div id="escalation-banner" class="form-msg error" style="display:none;"></div>
+          <canvas id="trend-chart" height="140"></canvas>
+          <p class="empty-state" id="trend-empty" style="display:none;">Not enough history for this device yet — capture a few frames from it first.</p>
+        </section>
+
+        <section class="panel">
+          <h3>Recent Detections</h3>
+          <ul class="detect-list" id="detect-list">
+            <li class="empty-state">Loading…</li>
+          </ul>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/camera.js"></script>
+</body>
+</html>
