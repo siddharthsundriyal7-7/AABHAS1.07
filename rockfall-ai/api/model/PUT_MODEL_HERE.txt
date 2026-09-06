@@ -1,3 +1,0 @@
-Put your trained `efficientnet_b0_final_v3.onnx` (from the v3 training notebook,
-Section 8) in this folder, replacing this file. api/classify.py loads it from
-this exact path — the filename must match.
